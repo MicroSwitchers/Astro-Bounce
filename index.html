@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toddler's Cosmic Physics Toy</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+            color: #fff;
+        }
+        #canvas {
+            display: block;
+        }
+        #settingsButton {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            padding: 10px 15px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        #settingsButton:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+        #settings {
+            position: absolute;
+            top: 70px;
+            right: 20px;
+            background-color: rgba(0, 0, 51, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            display: none;
+            color: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        #colorOptions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+        .colorOption {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+        }
+        input[type="range"] {
+            width: 100%;
+            margin: 10px 0;
+        }
+        label {
+            display: flex;
+            align-items: center;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <button id="settingsButton">Settings</button>
+    <div id="settings">
+        <div>Ball Colors:</div>
+        <div id="colorOptions"></div>
+        Ball Size: <input type="range" id="ballSize" min="20" max="200" value="80"><br>
+        Ball Speed: <input type="range" id="ballSpeed" min="1" max="10" value="5"><br>
+        Number of Balls: <input type="range" id="ballCount" min="1" max="20" value="10"><br>
+        <label><input type="checkbox" id="glowEffect" checked> Enable Glow Effect</label><br>
+        <label><input type="checkbox" id="blackBackground"> Black Background</label>
+    </div>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        const settingsButton = document.getElementById('settingsButton');
+        const settingsPanel = document.getElementById('settings');
+        const colorOptions = document.getElementById('colorOptions');
+        const ballSizeInput = document.getElementById('ballSize');
+        const ballSpeedInput = document.getElementById('ballSpeed');
+        const ballCountInput = document.getElementById('ballCount');
+        const glowEffectInput = document.getElementById('glowEffect');
+        const blackBackgroundInput = document.getElementById('blackBackground');
+
+        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8', '#F7DC6F'];
+        let activeColors = [...colors];
+        let balls = [];
+        let stars = [];
+        const gravity = 0.2;
+        const damping = 0.8;
+        const TOP_BOUNDARY_MULTIPLIER = 4;
+
+        let ballSize = 80;  // Increased default ball size
+        let ballSpeed = 5;
+        let ballCount = 10;  // Increased default ball count
+        let glowEffect = true;
+        let blackBackground = false;
+
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : null;
+        }
+
+        function rgbToHex(r, g, b) {
+            return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+        }
+
+        function getRandomColor() {
+            if (activeColors.length === 0) {
+                return colors[Math.floor(Math.random() * colors.length)];
+            }
+            const baseColor = activeColors[Math.floor(Math.random() * activeColors.length)];
+            const rgb = hexToRgb(baseColor);
+            
+            if (!rgb) return baseColor; // If conversion fails, return the original color
+
+            const variation = 20;
+            const r = Math.max(0, Math.min(255, rgb.r + Math.floor(Math.random() * variation * 2) - variation));
+            const g = Math.max(0, Math.min(255, rgb.g + Math.floor(Math.random() * variation * 2) - variation));
+            const b = Math.max(0, Math.min(255, rgb.b + Math.floor(Math.random() * variation * 2) - variation));
+
+            return rgbToHex(r, g, b);
+        }
+
+        class Ball {
+            constructor(x, y, radius) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = getRandomColor();
+                this.vx = 0;
+                this.vy = 0;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                if (glowEffect) {
+                    ctx.shadowBlur = 20;
+                    ctx.shadowColor = this.color;
+                }
+                ctx.fill();
+                ctx.closePath();
+                ctx.shadowBlur = 0;
+            }
+
+            update() {
+                this.vy += gravity;
+                this.x += this.vx;
+                this.y += this.vy;
+
+                if (this.y + this.radius > height) {
+                    this.y = height - this.radius;
+                    this.vy *= -damping;
+                }
+
+                if (this.y - this.radius < -height * (TOP_BOUNDARY_MULTIPLIER - 1)) {
+                    this.y = -height * (TOP_BOUNDARY_MULTIPLIER - 1) + this.radius;
+                    this.vy *= -damping;
+                }
+
+                if (this.x + this.radius > width) {
+                    this.x = width - this.radius;
+                    this.vx *= -damping;
+                } else if (this.x - this.radius < 0) {
+                    this.x = this.radius;
+                    this.vx *= -damping;
+                }
+            }
+        }
+
+        class Star {
+            constructor() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.size = Math.random() * 2;
+                this.speed = Math.random() * 0.5;
+            }
+
+            draw() {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.fillRect(this.x, this.y, this.size, this.size);
+            }
+
+            update() {
+                this.y += this.speed;
+                if (this.y > height) {
+                    this.y = 0;
+                    this.x = Math.random() * width;
+                }
+            }
+        }
+
+        function createBalls() {
+            balls = [];
+            for (let i = 0; i < ballCount; i++) {
+                const radius = ballSize / 2;
+                const x = Math.random() * (width - radius * 2) + radius;
+                const y = Math.random() * (height / 2);
+                balls.push(new Ball(x, y, radius));
+            }
+        }
+
+        function createStars() {
+            stars = [];
+            for (let i = 0; i < 100; i++) {
+                stars.push(new Star());
+            }
+        }
+
+        function animate() {
+            ctx.fillStyle = blackBackground ? '#000000' : '#000033';
+            ctx.fillRect(0, 0, width, height);
+
+            if (!blackBackground) {
+                stars.forEach(star => {
+                    star.update();
+                    star.draw();
+                });
+            }
+
+            balls.forEach(ball => {
+                ball.update();
+                ball.draw();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        function addImpulse() {
+            balls.forEach(ball => {
+                ball.vy -= Math.random() * (ballSpeed * 2) + 5;
+                ball.vx += (Math.random() - 0.5) * ballSpeed;
+            });
+        }
+
+        settingsButton.addEventListener('click', () => {
+            settingsPanel.style.display = settingsPanel.style.display === 'none' ? 'block' : 'none';
+        });
+
+        colors.forEach(color => {
+            const colorOption = document.createElement('div');
+            colorOption.className = 'colorOption';
+            colorOption.style.backgroundColor = color;
+            colorOption.addEventListener('click', () => {
+                const activeColorCount = Array.from(colorOptions.children).filter(c => c.style.opacity !== '0.5').length;
+                if (activeColorCount > 1 || colorOption.style.opacity !== '1') {
+                    colorOption.style.opacity = colorOption.style.opacity === '0.5' ? '1' : '0.5';
+                    updateActiveColors();
+                }
+            });
+            colorOptions.appendChild(colorOption);
+        });
+
+        function updateActiveColors() {
+            activeColors = Array.from(colorOptions.children)
+                .filter(option => option.style.opacity !== '0.5')
+                .map(option => option.style.backgroundColor);
+            
+            if (activeColors.length === 0) {
+                const randomColor = colorOptions.children[Math.floor(Math.random() * colorOptions.children.length)];
+                randomColor.style.opacity = '1';
+                activeColors.push(randomColor.style.backgroundColor);
+            }
+            
+            balls.forEach(ball => ball.color = getRandomColor());
+        }
+
+        ballSizeInput.addEventListener('input', () => {
+            ballSize = parseInt(ballSizeInput.value);
+            createBalls();
+        });
+
+        ballSpeedInput.addEventListener('input', () => {
+            ballSpeed = parseInt(ballSpeedInput.value);
+        });
+
+        ballCountInput.addEventListener('input', () => {
+            ballCount = parseInt(ballCountInput.value);
+            createBalls();
+        });
+
+        glowEffectInput.addEventListener('change', () => {
+            glowEffect = glowEffectInput.checked;
+        });
+
+        blackBackgroundInput.addEventListener('change', () => {
+            blackBackground = blackBackgroundInput.checked;
+        });
+
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            createBalls();
+            createStars();
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') addImpulse();
+        });
+
+        canvas.addEventListener('click', (e) => {
+            if (e.target === canvas) addImpulse();
+        });
+        canvas.addEventListener('touchstart', (e) => {
+            if (e.target === canvas) addImpulse();
+        });
+
+        createBalls();
+        createStars();
+        animate();
+    </script>
+</body>
+</html>
